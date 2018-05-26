@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+  <link rel="stylesheet" href="node_modules/todomvc-app-css/index.css">
+</head>
+<body>
+  <pre>
+    要实现的功能
+    1. 添加备忘录(输入标题后回车添加,如果内容为空或只有空格会清空，什么都不添加)
+    2. 完成备忘录(点击标题前面的复选框)
+    3. 删除备忘录(点击标题后面的叉)
+    4. 编辑备忘录(双击标题进入编辑模式)
+    5. 取消编辑备忘录(按ESC或者失去焦点时)
+    6. 完成编辑备忘录(按回车键完成[如果内容为空的时候会自动删除]，此时也会调用到失去焦点事件)
+    7. 一键完成所有备忘录(点击第一行的复选框)
+    8. 过滤任务，显示全部，未完成，已完成的备忘录(点击全部，未完成，已完成按钮)
+    9. 清空已完成备忘录(点击清空已完成)
+    
+    所有功能已完成
+  </pre>
+  <section class="todoapp">
+    <header class="header">
+      <h1>TodoList</h1>
+      <input class="new-todo" v-model="newTodo" @keyup.enter.trim="addTodo" placeholder="记录你的任务?" autofocus>
+    </header>
+    <!-- This section should be hidden by default and shown when there are todos -->
+    <section class="main" v-show="showList">
+      <input id="toggle-all" class="toggle-all" type="checkbox" v-model="doneState">
+      <label for="toggle-all">完成所有任务</label>
+      <ul class="todo-list">
+        <!-- These are here just to show the structure of the list items -->
+        <!-- List items should get the class `editing` when editing and `completed` when marked as completed -->
+        <li :class="{'completed': item.checked, 'editing': index === editingIndex}" v-for="(item, index) in filteredTodos" ::key="'item-' + index">
+          <div class="view">
+            <input class="toggle" type="checkbox" v-model="item.checked">
+            <label @dblclick="editTodo(index)">{{ item.text }}</label>
+            <button class="destroy" @click="deleteTodo(item)"></button>
+          </div>
+          <input class="edit" type="text" v-model="item.text" v-focus="index === editingIndex" @blur="saveTodo(item)" @keyup.enter="saveTodo(item)">
+        </li>
+      </ul>
+    </section>
+    <!-- This footer should hidden by default and shown when there are todos -->
+    <footer class="footer" v-show="showList">
+      <!-- This should be `0 items left` by default -->
+      <span class="todo-count"><strong>{{ activeCount }}项 </strong> 未完成</span>
+      <!-- Remove this if you don't implement routing -->
+      <ul class="filters">
+        <li>
+          <a :class="{'selected': visibility === 'all'}" href="#/" @click="visibility = 'all'">所有</a>
+        </li>
+        <li>
+          <a :class="{'selected': visibility === 'active'}" href="#/active" @click="visibility = 'active'">未完成</a>
+        </li>
+        <li>
+          <a :class="{'selected': visibility === 'completed'}" href="#/completed" @click="visibility = 'completed'">已完成</a>
+        </li>
+      </ul>
+      <!-- Hidden if no completed items are left ↓ -->
+      <button class="clear-completed" v-show="completedCount > 0" @click="clearCompleted">清空已完成</button>
+    </footer>
+  </section>
+  <script src="node_modules/vue/dist/vue.min.js"></script>
+  <script src="node_modules//underscore/underscore-min.js"></script>
+  <script src="store.js"></script>
+  <script>
+
+    var filters = {
+      all: todos => todos,
+      active: todos => todos.filter(todo => !todo.checked),
+      completed: todos => todos.filter(todo => todo.checked)
+    }
+    var visibility = location.hash.substr(location.hash.indexOf('/')+1)
+
+    visibility = visibility === '' ? 'all' : visibility
+    // 注册一个全局自定义指令 `v-focus`
+    Vue.directive('focus', {
+      // 当被绑定的元素插入到 DOM 中时……
+      inserted (el) {
+        // 聚焦元素
+        el.focus()
+      },
+      // 当绑定的元素更新的时候
+      update (el) {
+        el.focus()
+      }
+    })
+    const todoApp = new Vue({
+      el: '.todoapp',
+      data: {
+        visibility,
+        // 正在编辑的任务的索引
+        editingIndex: -1,
+        // 新的任务
+        newTodo: '',
+        // 任务列表
+        todoList: todoStorage.fetch()
+      },
+      watch: {
+        // 深度观察 todoList
+        todoList: {
+          deep: true,
+          handler: todoStorage.save
+        },
+        // 观察全部完成的状态
+        // doneState: {
+        //   handler () {
+        //     this.todoList.map(todo => {
+        //       todo.checked = this.doneState
+        //     })
+        //   }
+        // }
+      },
+      methods: {
+        // 回车执行 添加任务方法
+        addTodo () {
+          // 判断任务内容是不是空
+          if (this.newTodo.trim().length < 1) {
+            return
+          }
+          // 如果内容不为空，就添加到任务列表
+          this.todoList.unshift({
+            // 为内容去掉前后空格
+            text: this.newTodo,
+            // 给个任务完成状态，默认为未完成
+            checked: false
+          })
+          this.newTodo = ''
+        },
+        // 点击小叉号 删除此项任务
+        deleteTodo (item) {
+          this.todoList = _.without(this.todoList, item)
+        },
+        // 绑定双击事件，进入编辑任务模式
+        editTodo (index) {
+          this.editingIndex = index
+        },
+        // 取消编辑模式，因为是动态绑定，不需要保存，只要把隐藏输入框即可
+        saveTodo (item) {
+          this.editingIndex = -1
+          if (item.text.trim().length < 1) {
+            this.deleteTodo(item)
+          }
+        },
+        // 清空已完成任务
+        clearCompleted () {
+          this.todoList = filters.active(this.todoList)
+        }
+      },
+      computed: {
+        // 显示列表， 如果任务条数大于1, 则显示
+        showList () {
+          return this.todoList.length > 0
+        },
+        // 未完成的任务数量
+        activeCount () {
+          return filters.active(this.todoList).length
+        },
+        // 已完成的人物数量
+        completedCount () {
+          return filters.completed(this.todoList).length
+        },
+        // 是否所有任务都完成
+        doneState: {
+          get () {
+            return this.activeCount === 0
+          },
+          set (value) {
+            // value的值是checkbox 是否选中时的值
+            this.todoList.map(todo => {
+              todo.checked = value
+            })
+          }
+        },
+        filteredTodos() {
+          return filters[this.visibility](this.todoList)
+        }
+      }
+    })
+  </script>
+</body>
+</html>
